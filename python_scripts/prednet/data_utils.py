@@ -51,7 +51,7 @@ class SequenceGenerator(Iterator):
             current_index = (self.batch_index * self.batch_size) % self.n
             index_array, current_batch_size = next(self.index_generator), self.batch_size
         batch_x = np.zeros((current_batch_size, self.nt) + self.im_shape, np.float32)
-        for i, idx in enumerate(index_array):
+        for i, idx in enumerate(index_array[0]):
             idx = self.possible_starts[idx]
             batch_x[i] = self.preprocess(self.X[idx:idx+self.nt])
         if self.output_mode == 'error':  # model outputs errors, so y should be zeros

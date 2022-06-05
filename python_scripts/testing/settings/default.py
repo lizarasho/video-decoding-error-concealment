@@ -1,0 +1,17 @@
+from testing.settings.common import DIPLOMA_FOLDER
+
+MAIN_RES = '160x128'
+MAIN_QP = 20
+MODEL_VERSION = 2
+
+INPUT_FOLDER = f'{DIPLOMA_FOLDER}/input'
+
+ORIGINAL_YUVS = f'{INPUT_FOLDER}/yuvs/{MAIN_RES}'
+ORIGINAL_STREAMS = f'{INPUT_FOLDER}/streams/{MAIN_RES}/{MAIN_QP}'
+
+NAL_UNITS_DESC = f'{DIPLOMA_FOLDER}/NAL_units_desc/{MAIN_RES}/{MAIN_QP}'
+
+DAMAGED_STREAMS = f'{DIPLOMA_FOLDER}/damaged_streams/{MAIN_RES}/{MAIN_QP}'
+RECONSTRUCTED_STREAMS = f'{DIPLOMA_FOLDER}/reconstructed_streams/{MAIN_RES}/{MAIN_QP}/model_{MODEL_VERSION}'
+
+FIGURES_PATH = f'{DIPLOMA_FOLDER}/python_scripts/testing/figures/default/{MAIN_RES}/{MAIN_QP}/model_{MODEL_VERSION}'
