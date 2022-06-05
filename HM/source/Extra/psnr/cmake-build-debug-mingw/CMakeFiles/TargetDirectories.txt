@@ -1,0 +1,3 @@
+D:/University/diplom/HM-master/source/Extra/psnr/cmake-build-debug-mingw/CMakeFiles/PSNR.dir
+D:/University/diplom/HM-master/source/Extra/psnr/cmake-build-debug-mingw/CMakeFiles/edit_cache.dir
+D:/University/diplom/HM-master/source/Extra/psnr/cmake-build-debug-mingw/CMakeFiles/rebuild_cache.dir
