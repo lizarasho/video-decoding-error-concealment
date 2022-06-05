@@ -40,6 +40,7 @@
 #include <stdio.h>
 #include <fcntl.h>
 #include <assert.h>
+#include <filesystem>
 
 #include "TAppDecTop.h"
 #include "TLibDecoder/AnnexBread.h"
@@ -140,6 +141,11 @@ Void TAppDecTop::decode()
   Bool openedReconFile = false; // reconstruction file not yet opened. (must be performed after SPS is seen)
   Bool loopFiltered = false;
 
+  FILE *logFile = nullptr;
+  if (!m_loggingFileName.empty()) {
+      logFile = fopen(m_loggingFileName.c_str(), "w");
+  }
+
   while (!!bitstreamFile)
   {
     /* location serves to work around a design fault in the decoder, whereby
@@ -204,7 +210,7 @@ Void TAppDecTop::decode()
       {
           // Возможно сompressMotion опускает вектора движения на уровень минимальных частиц.
           // В таком случае необходимо вызывать починку после фильтра. Тогда у нас будет доступ к массиву векторов движения
-          m_cTDecTop.getRepairer().repairPicture(m_cTDecTop.getPcPic(), m_cTDecTop.evalSrcPic(), m_ecAlgo, m_cTVideoIOYuvReconFile, m_mapFile);
+          m_cTDecTop.getRepairer().repairPicture(m_cTDecTop.getPcPic(), m_cTDecTop.evalSrcPic(), m_ecAlgo, m_cTVideoIOYuvReconFile, m_mapFile, m_reconFileName, logFile);
           m_cTDecTop.executeLoopFilters(poc, pcListPic);
       }
       loopFiltered = (nalu.m_nalUnitType == NAL_UNIT_EOS);
@@ -265,6 +271,10 @@ Void TAppDecTop::decode()
         xWriteOutput( pcListPic, nalu.m_temporalId );
       }
     }
+  }
+
+  if (logFile) {
+      fclose(logFile);
   }
 
   xFlushOutput( pcListPic );

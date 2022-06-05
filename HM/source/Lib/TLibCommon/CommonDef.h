@@ -269,6 +269,7 @@ template <typename T> inline Void Check3( T minVal, T maxVal, T a)
 #define xFree( ptr )                _aligned_free  ( ptr )
 #else
 #define xMalloc( type, len )        malloc   ( sizeof(type)*(len) )
+#define xCalloc( type, len )        calloc   ( (len), sizeof(type) )
 #define xFree( ptr )                free     ( ptr )
 #endif
 

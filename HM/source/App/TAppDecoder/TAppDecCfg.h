@@ -58,6 +58,7 @@ class TAppDecCfg
 protected:
   std::string   m_bitstreamFileName;                    ///< input bitstream file name
   std::string   m_reconFileName;                        ///< output reconstruction file name
+  std::string   m_loggingFileName;                      ///< output error logging file name
   Int           m_iSkipFrame;                           ///< counter for frames prior to the random access point to skip
   Int           m_outputBitDepth[MAX_NUM_CHANNEL_TYPE]; ///< bit depth used for writing output
   InputColourSpaceConversion m_outputColourSpaceConvert;
@@ -70,7 +71,7 @@ protected:
   std::vector<Int> m_targetDecLayerIdSet;             ///< set of LayerIds to be included in the sub-bitstream extraction process.
   Int           m_respectDefDispWindow;               ///< Only output content inside the default display window
   std::string   m_ecAlgo;
-    std::string   m_mapFile;
+  std::string   m_mapFile;
 #if O0043_BEST_EFFORT_DECODING
   UInt          m_forceDecodeBitDepth;                ///< if non-zero, force the bit depth at the decoder (best effort decoding)
 #endif
@@ -84,6 +85,7 @@ public:
   TAppDecCfg()
   : m_bitstreamFileName()
   , m_reconFileName()
+  , m_loggingFileName()
   , m_iSkipFrame(0)
   // m_outputBitDepth array initialised below
   , m_outputColourSpaceConvert(IPCOLOURSPACE_UNCHANGED)

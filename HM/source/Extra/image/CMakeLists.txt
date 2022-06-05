@@ -2,7 +2,7 @@
 # library
 set( LIB_NAME ImageRotate )
 
-set(OpenCV_DIR "D:\\opencv-master\\build\\install")
+set(OpenCV_DIR "/usr/local/Cellar/opencv/4.5.5")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 find_package(OpenCV REQUIRED)

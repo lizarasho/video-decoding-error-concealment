@@ -105,11 +105,11 @@ string NALPack::info(bool read_format) {
     char buffer[50];
     int n;
     if (read_format) {
-        n = sprintf(buffer, "%3u %6u %3u %3u %5u %3u", number, start, layerId, temporalId, size, unitTypeNum) ;
+        n = sprintf(buffer, "%3u %6zu %3u %3u %5zu %3u", number, start, layerId, temporalId, size, unitTypeNum) ;
         string type = typeToString(unitType);
         return string(buffer, n) + " " +  type + "\n";
     } else {
-        n = sprintf(buffer, "%u %u %u %u %u", start, layerId, temporalId, size, unitTypeNum);
+        n = sprintf(buffer, "%zu %u %u %zu %u", start, layerId, temporalId, size, unitTypeNum);
         return string(buffer, n) + "\n";
     }
 

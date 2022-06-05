@@ -829,6 +829,7 @@ Bool TVideoIOYuv::write( TComPicYuv* pPicYuvUser, const InputColourSpaceConversi
       retval=false;
     }
   }
+  m_cHandle.flush();
 
   if (nonZeroBitDepthShift)
   {

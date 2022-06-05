@@ -99,7 +99,7 @@ Void TComPicYuv::createWithoutCUInfo ( const Int picWidth,                 ///< 
   for(UInt comp=0; comp<getNumberValidComponents(); comp++)
   {
     const ComponentID ch=ComponentID(comp);
-    m_apiPicBuf[comp] = (Pel*)xMalloc( Pel, getStride(ch) * getTotalHeight(ch));
+    m_apiPicBuf[comp] = (Pel*)xCalloc( Pel, getStride(ch) * getTotalHeight(ch));
     m_piPicOrg[comp]  = m_apiPicBuf[comp] + (m_marginY >> getComponentScaleY(ch)) * getStride(ch) + (m_marginX >> getComponentScaleX(ch));
   }
   // initialize pointers for unused components to NULL

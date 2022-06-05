@@ -19,12 +19,17 @@ public:
     Int m_maxCUHeight;
     Int m_cuDepth;
 
-
-    Void repairPicture(TComPic *m_resPic,  TComPic *srcPic, string ecAlgo, TVideoIOYuv& videoIOYuv, string map);
-    Void zeroMove(TComPic *m_resPic,  TComPic *srcPic);
+    Void repairPicture(TComPic *m_resPic,  TComPic *srcPic, string ecAlgo, TVideoIOYuv& videoIOYuv, string map, const string &reconFileName, FILE *logFile);
+    Void zeroMove(TComPic *m_resPic,  TComPic *srcPic, FILE *logFile);
     Void moveInterpolation(TComPic *m_resPic,  TComPic *srcPic);
     Void stitching(TComPic *m_resPic,  TComPic *srcPic, TVideoIOYuv& videoIOYuv, Way& way);
 //    static Void buildMVVectors(TComPic *m_pcPic, UInt ctuAdr, UInt id, UInt depth);
+    Void baseRNN(TComPic *m_resPic,  TComPic *srcPic, const std::string &reconFileName, FILE *logFile);
+    Void advancedRNN(TComPic *m_resPic,  TComPic *srcPic, const std::string &reconFileName, FILE *logFile);
+    Void optimizedRNN(TComPic *m_resPic,  TComPic *srcPic, const std::string &reconFileName);
+
+private:
+    Int getFrameBufferShift(Int comp);
 };
 
 

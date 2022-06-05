@@ -1,7 +1,3 @@
-//
-// Created by Nika on 28.03.2021.
-//
-
 #include <cmath>
 #include <Utilities/TVideoIOYuv.h>
 #include "Repairer.h"
@@ -40,11 +36,13 @@ Void copyPart(TComPic *srcPic, TComPic *resPic, UInt uiCUAddr, UInt uiAbsZorderI
     }
 }
 
-Void Repairer::zeroMove(TComPic *m_pcPic,  TComPic *rpcPic) {
-    TComPicSym* pPicSym = m_pcPic -> getPicSym();
-    for ( UInt uiCUAddr = 0; uiCUAddr < pPicSym -> getNumberOfCtusInFrame(); uiCUAddr++ ) {
+Void Repairer::zeroMove(TComPic *m_pcPic, TComPic *rpcPic, FILE *logFile) {
+    TComPicSym *pPicSym = m_pcPic->getPicSym();
+    Int brokenSlicesNumber = 0;
+    for (UInt uiCUAddr = 0; uiCUAddr < pPicSym->getNumberOfCtusInFrame(); uiCUAddr++) {
         TComDataCU *pCtu = pPicSym->getCtu(uiCUAddr);
         if (pCtu->getSlice() == NULL) {
+            ++brokenSlicesNumber;
             cout << uiCUAddr << " Broken Slice Found!!!\n";
             auto m_numCTUInWidth = (m_picWidth / m_maxCUWidth) + ((m_picWidth % m_maxCUWidth) ? 1 : 0);
             Int yPos = (uiCUAddr / m_numCTUInWidth) * m_maxCUHeight;
@@ -52,6 +50,9 @@ Void Repairer::zeroMove(TComPic *m_pcPic,  TComPic *rpcPic) {
             Int height = (yPos + m_maxCUHeight > m_picHeight) ? (m_picHeight - yPos) : m_maxCUHeight;
             Int width = (xPos + m_maxCUWidth > m_picWidth) ? (m_picWidth - xPos) : m_maxCUWidth;
             cout << xPos << "," << yPos << " " << xPos + width << "," << yPos + height << "\n";
+            if (logFile) {
+                fprintf(logFile, "%d %d %d %d %d\n", m_pcPic->getPOC(), xPos, yPos, xPos + width, yPos + height);
+            }
             assert(rpcPic != m_pcPic);
             TComPicYuv *resYuv = m_pcPic->getPicYuvRec();
             TComPicYuv *srcYuv = rpcPic->getPicYuvRec();
@@ -337,7 +338,9 @@ Void Repairer::stitching(TComPic *m_pcPic,  TComPic *rpcPic, TVideoIOYuv& videoI
                         vector<short> srcLine;
                         for (int i = (yShift + y) * newSrc.cols + xShift + xPos;
                              i <= (yShift + y) * newSrc.cols + xShift + xPos + width; ++i) {
-                            if (srcBuff[i] != 0) {
+                            int lineIndex = i - ((yShift + y) * newSrc.cols + xShift + xPos);
+                            int srcBuffIndex = i;
+                            if (srcBuff[i] != 0 && lineIndex < line.size() && srcBuffIndex < srcBuff.size()) {
                                 line[i - ((yShift + y) * newSrc.cols + xShift + xPos)] = ((short) srcBuff[i]);
                             }
                             //srcLine.push_back()
@@ -362,28 +365,194 @@ Void Repairer::stitching(TComPic *m_pcPic,  TComPic *rpcPic, TVideoIOYuv& videoI
     }
 }
 
+const static string PYTHON_PATH = "/Users/lizarasho/.conda/envs/python_scripts/bin/python";
+const static string EVAL_SCRIPT_PATH = "/Users/lizarasho/itmo/diploma/python_scripts/prednet/eval_one_frame.py";
+const static string EVAL_SCRIPT_PATH_OPT = "/Users/lizarasho/itmo/diploma/python_scripts/prednet/eval_one_frame_opt.py";
+const static string TMP_FRAME_PATH = "/Users/lizarasho/itmo/diploma/python_scripts/prednet/temporary_frame.yuv";
 
+Int Repairer::getFrameBufferShift(Int comp) {
+    switch (comp) {
+        case COMPONENT_Cb:
+            return m_picWidth * m_picHeight;
+        case COMPONENT_Cr:
+            return m_picWidth * m_picHeight * 5 / 4;
+        default:
+            return 0;
+    }
+}
 
-Void Repairer::repairPicture(TComPic *m_pcPic,  TComPic *rpcPic, string ecAlgo, TVideoIOYuv& videoIOYuv, string map) {
+Void Repairer::baseRNN(TComPic *m_pcPic, TComPic *rpcPic, const std::string &reconFileName, FILE *logFile) {
+    if (m_pcPic->getPOC() < 10) {
+        zeroMove(m_pcPic, rpcPic, logFile);
+    } else {
+        bool hasBrokenSlice = false;
+        TComPicSym *pPicSym = m_pcPic->getPicSym();
+        for (UInt uiCUAddr = 0; uiCUAddr < pPicSym->getNumberOfCtusInFrame(); uiCUAddr++) {
+            TComDataCU *pCtu = pPicSym->getCtu(uiCUAddr);
+            if (pCtu->getSlice() == NULL) {
+                cout << "At least one broken slice was found: ";
+                auto m_numCTUInWidth = (m_picWidth / m_maxCUWidth) + ((m_picWidth % m_maxCUWidth) ? 1 : 0);
+                Int yPos = (uiCUAddr / m_numCTUInWidth) * m_maxCUHeight;
+                Int xPos = (uiCUAddr % m_numCTUInWidth) * m_maxCUWidth;
+                Int height = (yPos + m_maxCUHeight > m_picHeight) ? (m_picHeight - yPos) : m_maxCUHeight;
+                Int width = (xPos + m_maxCUWidth > m_picWidth) ? (m_picWidth - xPos) : m_maxCUWidth;
+                cout << xPos << ',' << yPos << ' ' << xPos + width << ',' << yPos + height << '\n';
+                assert(rpcPic != m_pcPic);
+                hasBrokenSlice = true;
+                break;
+            }
+        }
+        if (hasBrokenSlice) {
+            string command = PYTHON_PATH + " " + EVAL_SCRIPT_PATH + " -i " + reconFileName + " 2>/dev/null";
+            std::cout << "Command: " << command << '\n';
+            system(command.c_str());
+            std::vector<UChar> frameBuffer(m_picWidth * m_picHeight * 3 / 2);
+            std::ifstream frameInput(TMP_FRAME_PATH, std::ios::in | std::ifstream::binary);
+            frameInput.read(reinterpret_cast<char *>(&frameBuffer[0]), frameBuffer.size() * sizeof(UChar));
+
+            TComPicYuv *resYuv = m_pcPic->getPicYuvRec();
+            for (Int comp = 0; comp < resYuv->getNumberValidComponents(); comp++) {
+                const auto compId = ComponentID(comp);
+                Pel *resX = (resYuv->getAddr(compId));
+                UInt fullHeight = resYuv->getHeight(compId);
+                UInt fullWidth = resYuv->getWidth(compId);
+                Int bufferShift = getFrameBufferShift(comp);
+                for (Int y = 0; y < fullHeight; y++, resX += resYuv->getStride(compId)) {
+                    vector<Short> line(fullWidth);
+                    for (Int x = 0; x < fullWidth; x++) {
+                        line[x] = (Short) frameBuffer[bufferShift + y * fullWidth + x];
+                    }
+                    ::memcpy(resX, line.data(), fullWidth * sizeof(Pel));
+                }
+            }
+
+            std::cout << '\n';
+        }
+    }
+}
+
+Void Repairer::advancedRNN(TComPic *m_pcPic, TComPic *rpcPic, const std::string &reconFileName, FILE *logFile) {
+    if (m_pcPic->getPOC() < 10) {
+        zeroMove(m_pcPic, rpcPic, logFile);
+    } else {
+        TComPicSym *pPicSym = m_pcPic->getPicSym();
+        for (UInt uiCUAddr = 0; uiCUAddr < pPicSym->getNumberOfCtusInFrame(); uiCUAddr++) {
+            TComDataCU *pCtu = pPicSym->getCtu(uiCUAddr);
+            if (pCtu->getSlice() == NULL) {
+                cout << uiCUAddr << " broken slice was found: ";
+                auto m_numCTUInWidth = (m_picWidth / m_maxCUWidth) + ((m_picWidth % m_maxCUWidth) ? 1 : 0);
+                Int yPos = (uiCUAddr / m_numCTUInWidth) * m_maxCUHeight;
+                Int xPos = (uiCUAddr % m_numCTUInWidth) * m_maxCUWidth;
+                Int CU_H = (yPos + m_maxCUHeight > m_picHeight) ? (m_picHeight - yPos) : m_maxCUHeight;
+                Int CU_W = (xPos + m_maxCUWidth > m_picWidth) ? (m_picWidth - xPos) : m_maxCUWidth;
+                cout << xPos << ',' << yPos << ' ' << xPos + CU_W << ',' << yPos + CU_H << '\n';
+                assert(rpcPic != m_pcPic);
+                TComPicYuv *resYuv = m_pcPic->getPicYuvRec();
+                string command = PYTHON_PATH + " " + EVAL_SCRIPT_PATH + " -i " + reconFileName + " 2>/dev/null";
+                std::cout << "Command: " << command << '\n';
+                system(command.c_str());
+                std::vector<UChar> frameBuffer(m_picWidth * m_picHeight * 3 / 2);
+                std::ifstream frameInput(TMP_FRAME_PATH, std::ios::in | std::ifstream::binary);
+                frameInput.read(reinterpret_cast<char *>(&frameBuffer[0]), frameBuffer.size() * sizeof(UChar));
+
+                for (Int comp = 0; comp < resYuv->getNumberValidComponents(); comp++) {
+                    const auto compId = ComponentID(comp);
+                    const UInt strideRes = resYuv->getStride(compId);
+                    Pel *resX = (resYuv->getAddr(compId, uiCUAddr));
+                    UInt CU_H_New = compId == 0 ? CU_H : CU_H >> 1;
+                    UInt CU_W_New = compId == 0 ? CU_W : CU_W >> 1;
+                    Int xPosNew = compId == 0 ? xPos : xPos >> 1;
+                    Int yPosNew = compId == 0 ? yPos : yPos >> 1;
+                    Int fullWidth = resYuv->getWidth(compId);
+                    Int bufferShift = getFrameBufferShift(comp);
+                    for (Int y = yPosNew; y < yPosNew + CU_H_New; y++, resX += strideRes) {
+                        vector<Short> line(CU_W_New);
+                        for (Int x = xPosNew; x < xPosNew + CU_W_New; ++x) {
+                            line[x - xPosNew] = (Short) frameBuffer[bufferShift + y * fullWidth + x];
+                        }
+                        ::memcpy(resX, line.data(), CU_W_New * sizeof(Pel));
+                    }
+                }
+            }
+        }
+    }
+}
+
+Void Repairer::optimizedRNN(TComPic *m_pcPic, TComPic *rpcPic, const std::string &reconFileName) {
+    TComPicSym *pPicSym = m_pcPic->getPicSym();
+    for (UInt uiCUAddr = 0; uiCUAddr < pPicSym->getNumberOfCtusInFrame(); uiCUAddr++) {
+        TComDataCU *pCtu = pPicSym->getCtu(uiCUAddr);
+        if (pCtu->getSlice() == NULL) {
+            cout << uiCUAddr << " broken slice was found: ";
+            auto m_numCTUInWidth = (m_picWidth / m_maxCUWidth) + ((m_picWidth % m_maxCUWidth) ? 1 : 0);
+            Int yPos = (uiCUAddr / m_numCTUInWidth) * m_maxCUHeight;
+            Int xPos = (uiCUAddr % m_numCTUInWidth) * m_maxCUWidth;
+            Int CU_H = (yPos + m_maxCUHeight > m_picHeight) ? (m_picHeight - yPos) : m_maxCUHeight;
+            Int CU_W = (xPos + m_maxCUWidth > m_picWidth) ? (m_picWidth - xPos) : m_maxCUWidth;
+            cout << xPos << ',' << yPos << ' ' << xPos + CU_W << ',' << yPos + CU_H << '\n';
+            assert(rpcPic != m_pcPic);
+            TComPicYuv *resYuv = m_pcPic->getPicYuvRec();
+
+            std::string command = std::string(PYTHON_PATH).append(" ").append(EVAL_SCRIPT_PATH_OPT)
+                    .append(" -i ").append(reconFileName)
+                    .append(" --width ").append(std::to_string(m_picWidth))
+                    .append(" --height ").append(std::to_string(m_picHeight))
+                    .append(" --x1 ").append(std::to_string(xPos))
+                    .append(" --y1 ").append(std::to_string(yPos))
+                    .append(" --x2 ").append(std::to_string(xPos + CU_W))
+                    .append(" --y2 ").append(std::to_string(yPos + CU_H))
+                    .append(" 2>/dev/null");
+
+            std::cout << "Command: " << command << '\n';
+            system(command.c_str());
+            std::vector<UChar> CUBuffer(CU_W * CU_H * 3 / 2);
+            std::ifstream frameInput(TMP_FRAME_PATH, std::ios::in | std::ifstream::binary);
+            frameInput.read(reinterpret_cast<char *>(&CUBuffer[0]), CUBuffer.size() * sizeof(UChar));
+
+            for (Int comp = 0; comp < resYuv->getNumberValidComponents(); comp++) {
+                const auto compId = ComponentID(comp);
+                const UInt strideRes = resYuv->getStride(compId);
+                Pel *resX = (resYuv->getAddr(compId, uiCUAddr));
+                UInt CU_H_New = compId == 0 ? CU_H : CU_H >> 1;
+                UInt CU_W_New = compId == 0 ? CU_W : CU_W >> 1;
+                Int xPosNew = compId == 0 ? xPos : xPos >> 1;
+                Int yPosNew = compId == 0 ? yPos : yPos >> 1;
+                Int bufferShift = 0;
+                if (comp == 1) {
+                    bufferShift = CU_W * CU_H;
+                } else if (comp == 2) {
+                    bufferShift = CU_W * CU_H * 5 / 4;
+                }
+                for (Int y = yPosNew; y < yPosNew + CU_H_New; y++, resX += strideRes) {
+                    vector<Short> line(CU_W_New);
+                    for (Int x = xPosNew; x < xPosNew + CU_W_New; ++x) {
+                        line[x - xPosNew] = (Short) CUBuffer[bufferShift + (y - yPosNew) * CU_W_New + (x - xPosNew)];
+                    }
+                    ::memcpy(resX, line.data(), CU_W_New * sizeof(Pel));
+                }
+            }
+        }
+    }
+}
+
+Void Repairer::repairPicture(TComPic *m_pcPic, TComPic *rpcPic, string ecAlgo, TVideoIOYuv &videoIOYuv, string map,
+                             const string &reconFileName, FILE *logFile) {
     if (ecAlgo == "1") {
         return;
-    }
-    if (ecAlgo == "2") {
-        zeroMove(m_pcPic, rpcPic);
+    } else if (ecAlgo == "2") {
+        zeroMove(m_pcPic, rpcPic, logFile);
         return;
-    }
-    if (ecAlgo == "3") {
+    } else if (ecAlgo == "3") {
         moveInterpolation(m_pcPic, rpcPic);
-    }
-    if (ecAlgo == "4") {
-
-
+    } else if (ecAlgo == "4") {
         std::ifstream file(map);
         Way way(file);
-        //vector<string> firstLine = getNextLineAndSplitIntoTokens(file);
-
-        //auto x = way.srcList(550);
-
         stitching(m_pcPic, rpcPic, videoIOYuv, way);
+    } else if (ecAlgo == "5") {
+        baseRNN(m_pcPic, rpcPic, reconFileName, logFile);
+    } else if (ecAlgo == "6") {
+        advancedRNN(m_pcPic, rpcPic, reconFileName, logFile);
+    } else if (ecAlgo == "7") {
+        optimizedRNN(m_pcPic, rpcPic, reconFileName);
     }
 }
